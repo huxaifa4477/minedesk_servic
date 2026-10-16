@@ -1,0 +1,55 @@
+name: Build Windows Controlled Agent
+
+on:
+  workflow_dispatch:   # Manual run button
+  push:
+    branches: [ main, master ]
+
+env:
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+
+jobs:
+  build-windows:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.24.5"
+          channel: "stable"
+          architecture: x64
+
+      - name: Enable long paths
+        run: git config --system core.longpaths true
+
+      - name: Install vcpkg packages
+        shell: bash
+        run: |
+          vcpkg install libvpx:x64-windows-static libyuv:x64-windows-static opus:x64-windows-static aom:x64-windows-static
+
+      - name: Build
+        shell: bash
+        run: |
+          python build.py --flutter --hwcodec
+        continue-on-error: true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-agent
+          path: |
+            flutter/build/windows/x64/runner/Release/**
+            target/release/*.exe
+            *.exe
+            *.msi
+          if-no-files-found: warn
